@@ -1,55 +1,57 @@
 # SMSAlert
 
-收到包含指定关键字的短信时，自动拨打一个电话。
+An Android app that automatically places a phone call when it receives an SMS containing a given keyword.
 
-典型用法：服务器监控、告警平台等通过短信发告警，夜里手机静音时短信很容易漏看，而来电会响铃。把告警短信变成一通电话，就能把人叫醒。
+Typical use case: monitoring and alerting systems often send alerts by SMS, which are easy to miss at night when the phone is on silent — but an incoming call rings. Turning alert texts into a phone call makes sure you actually wake up.
 
-## 功能
+## Features
 
-- **关键字匹配**：短信内容包含关键字（不区分大小写）即触发；长短信会按发件人拼接成完整内容后再匹配
-- **发件人过滤**（可选）：只处理指定号码发来的短信；按尾号匹配，`+8613800000000` 与 `13800000000` 视为同一号码。留空则不限发件人
-- **自动拨号**：直接拨出，不经过拨号盘确认
-- **冷却时间**：触发后 60 秒内再收到匹配短信会被忽略，避免同一事件连发多条短信导致连环拨号
-- **运行记录**：保留最近 30 条触发 / 失败记录，在主界面查看
-- **测试拨号**：一键验证拨号权限是否正常
+- **Keyword matching**: triggers when the message body contains the keyword (case-insensitive). Multi-part messages are reassembled per sender before matching.
+- **Sender filter** (optional): only handle messages from a specific number. Matching is by trailing digits, so `+8613800000000` and `13800000000` are treated as the same number. Leave empty to accept any sender.
+- **Automatic dialing**: places the call directly, without going through the dialer for confirmation.
+- **Cooldown**: after a trigger, further matching messages within 60 seconds are ignored, so a burst of alerts for the same incident doesn't cause back-to-back calls.
+- **Activity log**: keeps the 30 most recent triggers / failures, shown on the main screen.
+- **Test call**: verify with one tap that dialing works.
 
-App 无需常驻后台：短信接收器为静态注册，进程没在运行时系统也会拉起它。
+The app doesn't need to stay running in the background: the SMS receiver is registered statically, so the system launches the app when a message arrives even if its process isn't running.
 
-## 使用
+## Usage
 
-1. 安装 APK 并打开
-2. 填写 **关键字**、**要拨打的号码**，按需填写 **发件人号码**
-3. 打开开关，点 **保存**，按提示授予短信和拨号权限
-4. 点 **测试拨号** 确认能正常拨出
-5. 按界面上的状态提示完成以下设置（不同手机要求不同，建议都开）：
-   - **显示在其他应用上层**：部分 ROM 从后台拨号时需要
-   - **忽略电池优化**：防止系统休眠时杀掉进程、丢掉短信广播
-   - **应用设置**：在国产 ROM 上额外开启「自启动」「后台弹出界面」等选项
+> The app UI is in Chinese; the original labels are shown in parentheses below.
 
-## 权限说明
+1. Install the APK and open it.
+2. Fill in **Keyword** (关键字) and **Number to call** (拨打号码), and optionally **Sender** (发件人).
+3. Turn on the switch, tap **Save** (保存), and grant the SMS and phone permissions when prompted.
+4. Tap **Test call** (测试拨号) to confirm a call can be placed.
+5. Complete the following settings as indicated by the status panel (requirements vary by device; enabling all of them is recommended):
+   - **Display over other apps** (允许显示在其他应用上层): required by some ROMs to place calls from the background.
+   - **Ignore battery optimization** (忽略电池优化): prevents the system from killing the process and dropping SMS broadcasts while the device is idle.
+   - **App details** (应用详情): on many Chinese Android ROMs, also enable options such as "Autostart" and "Display pop-up windows while running in the background".
 
-| 权限 | 用途 |
+## Permissions
+
+| Permission | Purpose |
 | --- | --- |
-| `RECEIVE_SMS` | 接收短信并匹配关键字 |
-| `CALL_PHONE` | 直接拨打电话 |
-| `SYSTEM_ALERT_WINDOW` | 部分 ROM 后台拨号的兜底方案 |
-| `REQUEST_IGNORE_BATTERY_OPTIMIZATIONS` | 请求忽略电池优化 |
+| `RECEIVE_SMS` | Receive SMS and match the keyword |
+| `CALL_PHONE` | Place calls directly |
+| `SYSTEM_ALERT_WINDOW` | Fallback for background calling on some ROMs |
+| `REQUEST_IGNORE_BATTERY_OPTIMIZATIONS` | Ask to be exempted from battery optimization |
 
-App 不联网，配置和记录只保存在本机（SharedPreferences），且关闭了系统备份。
+The app has no network access. Settings and logs are stored only on the device (SharedPreferences), and system backup is disabled.
 
-## 构建
+## Building
 
-环境要求：JDK 17、Android SDK（compileSdk 35）
+Requirements: JDK 17, Android SDK (compileSdk 35)
 
 ```bash
 ./gradlew assembleDebug
 ```
 
-生成的 APK 位于 `app/build/outputs/apk/debug/`。
+The APK is written to `app/build/outputs/apk/debug/`.
 
-- 最低支持 Android 8.0（API 26）
-- targetSdk 为 34，用于侧载自用；涉及短信与拨号权限，不适合上架 Google Play
+- Minimum supported version: Android 8.0 (API 26)
+- targetSdk is 34, intended for personal sideloading. Because it uses SMS and call permissions, it is not suitable for publishing on Google Play.
 
-## 实现说明
+## Implementation notes
 
-拨号优先使用 `TelecomManager.placeCall`。它不需要启动 Activity，因此不受 Android 10+「禁止后台启动界面」的限制，在短信广播里也能拨出。少数 ROM 上这条路失败时，会退回 `ACTION_CALL`，这时需要「显示在其他应用上层」权限。
+Calls are placed with `TelecomManager.placeCall` first. It doesn't start an Activity, so it isn't affected by the Android 10+ restriction on starting activities from the background, and works from within the SMS broadcast. On the few ROMs where this fails, it falls back to `ACTION_CALL`, which requires the "Display over other apps" permission.
